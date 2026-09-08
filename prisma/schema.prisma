@@ -1,0 +1,109 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Brand {
+  id        String      @id @default(uuid())
+  name      String      @unique
+  country   String?
+  models    BikeModel[]
+  createdAt DateTime    @default(now())
+}
+
+model BikeCategoryDefault {
+  id                   String      @id // e.g. "ROAD_ALLROUNDER", "AERO_ROAD", "TT_TRIATHLON", "ENDURANCE_GRAVEL"
+  name                 String
+  description          String
+  defaultFrontalArea   Float       // m²
+  defaultCrr           Float       // koefisien rolling resistance
+  defaultDrivetrainLoss Float      // decimal (e.g. 0.025)
+  silhouetteType       String
+  models               BikeModel[]
+}
+
+model BikeModel {
+  id                String              @id @default(uuid())
+  brandId           String
+  brand             Brand               @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  modelName         String
+  yearStart         Int
+  yearEnd           Int?
+  categoryId        String
+  category          BikeCategoryDefault @relation(fields: [categoryId], references: [id])
+  customFrontalArea Float?
+  customCrr         Float?
+  notes             String?
+  userBikes         UserBike[]
+  createdAt         DateTime            @default(now())
+
+  @@index([brandId])
+  @@index([categoryId])
+}
+
+model UserBike {
+  id               String           @id @default(uuid())
+  userId           String           @default("guest-user")
+  customName       String
+  bikeModelId      String?
+  bikeModel        BikeModel?       @relation(fields: [bikeModelId], references: [id])
+  fallbackCategory String?
+  weightKg         Float
+  notes            String?
+  cdaHistory       CdaCalculation[]
+  createdAt        DateTime         @default(now())
+}
+
+model CdaCalculation {
+  id                  String    @id @default(uuid())
+  userBikeId          String?
+  userBike            UserBike? @relation(fields: [userBikeId], references: [id])
+  mode                String    // "MANUAL" atau "FILE_IMPORT"
+  
+  // Physics input parameters
+  speedKmh            Float
+  powerWatts          Float
+  totalWeightKg       Float
+  temperatureC        Float
+  altitudeM           Float
+  airDensityRho       Float
+  crr                 Float
+  drivetrainLossPct   Float
+  slopePercent        Float     @default(0.0)
+  headwindKmh         Float     @default(0.0)
+
+  // Physics output results
+  cdaValue            Float
+  powerDragWatts      Float
+  powerRollingWatts   Float
+  powerGravityWatts   Float
+  powerLossWatts      Float
+
+  // Tips & narrative
+  recommendationsJson String?
+  aiNarrative         String?
+  sourceFileName      String?
+  createdAt           DateTime  @default(now())
+
+  @@index([userBikeId])
+}
+
+model BikeFitScan {
+  id               String    @id @default(uuid())
+  userId           String    @default("guest-user")
+  userBikeId       String?
+  kneeAngleMinDeg  Float?
+  kneeAngleMaxDeg  Float?
+  torsoAngleDeg    Float?
+  elbowAngleDeg    Float?
+  neckAngleDeg     Float?
+  saddleDropCm     Float?
+  rawLandmarksJson String?
+  snapshotImageUrl String?
+  aiSummary        String?
+  createdAt        DateTime  @default(now())
+}
