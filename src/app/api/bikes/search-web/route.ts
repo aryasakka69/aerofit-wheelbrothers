@@ -16,52 +16,51 @@ export interface BikeSearchResult {
 }
 
 /**
- * Heuristic fallback parser - DIPERBAIKI untuk memprioritaskan Aero Road
+ * HEURISTIC ENGINE UNIVERSAL
+ * Logika cerdas memisahkan Aero Road vs TT untuk semua brand
  */
 function heuristicBikeLookup(query: string): BikeSearchResult {
   const q = query.toLowerCase();
-
   let category: BikeCategory = 'ROAD_ALLROUNDER';
 
-  // CEK AERO ROAD DULU (Agar tidak tertukar dengan TT)
-  if (q.includes('aero') || q.includes('propel') || q.includes('madone') || q.includes('venge') || q.includes('s5') || q.includes('foil') || q.includes('litening') || q.includes('systemsix') || q.includes('reacto') || q.includes('oltre') || q.includes('filante') || q.includes('noah') || q.includes('ostro') || q.includes('tarmac')) {
-    category = 'AERO_ROAD';
-  }
-  // BARU CEK TT
-  else if (q.includes('tt') || q.includes('triathlon') || q.includes('time trial') || q.includes('speedmax') || q.includes('trinity') || q.includes('shiv') || q.includes('plasma') || q.includes('ia') || q.includes('e-119') || q.includes('p5') || q.includes('p-series')) {
+  // 1. DAFTAR KATA KUNCI KHUSUS TT/TRIATHLON (Sangat Spesifik)
+  const ttKeywords = [
+    'tt', 'triathlon', 'time trial', 'speedmax', 'trinity', 'shiv', 'plasma', 'ia',
+    'e-119', 'p5', 'p-series', 'aquila', 'slice', 'viper', 'timemachine tt'
+  ];
+
+  // 2. DAFTAR KATA KUNCI AERO ROAD (Semua Brand Utama)
+  const aeroKeywords = [
+    'aero', 'foil', 'madone', 'venge', 'tarmac', 'propel', 's5', 's3', 'litening',
+    'systemsix', 'reacto', 'oltre', 'filante', 'noah', 'ostro', 'aeroad', 'dogma',
+    'f-series', 'concept', 'scultura aero'
+  ];
+
+  // LOGIKA: Cek apakah ada indikasi kuat TT dulu, jika tidak ada dan ada kata aero, maka masuk AERO_ROAD
+  const isTT = ttKeywords.some(key => q.includes(key));
+  const isAero = aeroKeywords.some(key => q.includes(key));
+
+  if (isTT) {
     category = 'TT_TRIATHLON';
-  } else if (q.includes('gravel') || q.includes('endurace') || q.includes('domane') || q.includes('roubaix') || q.includes('defy') || q.includes('caledonia') || q.includes('aspero') || q.includes('silex') || q.includes('grizl') || q.includes('grail') || q.includes('diverge') || q.includes('topstone')) {
+  } else if (isAero) {
+    category = 'AERO_ROAD';
+  } else if (q.includes('gravel') || q.includes('endurace') || q.includes('domane') || q.includes('roubaix') || q.includes('diverge')) {
     category = 'ENDURANCE_GRAVEL';
   }
 
   const yearMatch = query.match(/\b(20\d{2}|19\d{2})\b/);
   const year = yearMatch ? parseInt(yearMatch[1], 10) : new Date().getFullYear();
-
-  const knownBrands = [
-    'Polygon', 'Trek', 'Specialized', 'Cervélo', 'Cervelo', 'Giant', 'Canyon', 'Pinarello',
-    'BMC', 'Scott', 'Cannondale', 'Merida', 'Bianchi', 'Colnago', 'Factor', 'Wilier',
-    'Ridley', 'Look', 'Cube', 'Orbea', 'Argon 18', 'Felt', 'Fuji', 'Cinelli', 'Basso'
-  ];
-
-  let detectedBrand = 'Custom Brand';
-  for (const b of knownBrands) {
-    if (q.includes(b.toLowerCase())) {
-      detectedBrand = b;
-      break;
-    }
-  }
-
   const def = DEFAULT_BIKE_CATEGORIES[category];
 
   return {
-    brandName: detectedBrand,
+    brandName: 'Detected Brand',
     modelName: query.trim(),
     year,
     category,
     estimatedFrontalArea: def.defaultFrontalArea,
     estimatedCrr: def.defaultCrr,
-    estimatedWeightKg: category === 'TT_TRIATHLON' ? 8.5 : category === 'AERO_ROAD' ? 7.6 : 7.2,
-    notes: `Ditemukan dari katalog spesifikasi sepeda untuk "${query}". Geometri ${def.name}.`,
+    estimatedWeightKg: category === 'TT_TRIATHLON' ? 8.5 : 7.6,
+    notes: `Klasifikasi cerdas untuk "${query}". Kategori: ${def.name}.`,
     source: 'HEURISTIC_SEARCH'
   };
 }
@@ -69,37 +68,37 @@ function heuristicBikeLookup(query: string): BikeSearchResult {
 export async function POST(req: NextRequest) {
   try {
     const { query } = await req.json();
-    if (!query) return NextResponse.json({ error: 'Parameter query diperlukan' }, { status: 400 });
-
     const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      return NextResponse.json({ success: true, bike: heuristicBikeLookup(query), isAiGenerated: false });
-    }
 
-    // PROMPT DIPERBAIKI: Instruksi tegas membedakan Aero Road vs TT
+    if (!apiKey) return NextResponse.json({ success: true, bike: heuristicBikeLookup(query), isAiGenerated: false });
+
+    // PROMPT AI UNIVERSAL: Mengajari AI cara membedakan kategori secara fisik & fungsional
     const prompt = `
-Anda adalah spesialis aerodinamika sepeda. User mencari: "${query}".
-Tugas: Ekstraksi data teknis sepeda ini.
+Anda adalah database engineer sepeda balap dunia. User mencari: "${query}".
+Identifikasi spesifikasi teknisnya dengan aturan klasifikasi UNIVERSAL berikut:
 
-ATURAN KATEGORI (PENTING!):
-- "AERO_ROAD": Sepeda balap jalan raya dengan fitur aero (Contoh: Scott Foil, Trek Madone, Canyon Aeroad, Giant Propel). Meskipun sangat aero, ini BUKAN TT.
-- "TT_TRIATHLON": Hanya untuk sepeda khusus Time Trial/Triathlon dengan handlebar tanduk/aerobar (Contoh: Scott Plasma, Canyon Speedmax).
-- "ROAD_ALLROUNDER": Sepeda balap ringan/climbing (Contoh: Specialized Tarmac, Giant TCR).
+ATURAN KLASIFIKASI KATEGORI:
+1. "AERO_ROAD": Sepeda balap jalan raya (drop bar) yang didesain aerodinamis. 
+   Contoh: Scott Foil, Trek Madone, Giant Propel, Canyon Aeroad, Specialized Venge/Tarmac, Cervelo S5.
+   Ciri: Tidak punya tanduk/aerobar tambahan secara standar.
+   
+2. "TT_TRIATHLON": Sepeda khusus balap sendirian (Time Trial) atau Triathlon.
+   Contoh: Scott Plasma, Canyon Speedmax, Cervelo P5, Specialized Shiv, Giant Trinity.
+   Ciri: Menggunakan aerobar/extension bar di depan.
 
-Estimasi nilai:
-- Frontal Area (m²): Road ~0.110, Aero Road ~0.092, TT ~0.075.
-- Crr: Road ~0.0042, Aero Road ~0.0038, TT ~0.0034.
+3. "ROAD_ALLROUNDER": Sepeda balap ringan (climbing). Contoh: Giant TCR, Specialized Aethos.
+4. "ENDURANCE_GRAVEL": Sepeda jarak jauh atau medan kasar. Contoh: Specialized Diverge, Canyon Grizl.
 
-KEMBALIKAN HANYA JSON MURNI:
+KEMBALIKAN JSON MURNI:
 {
-  "brandName": "Nama Brand",
-  "modelName": "Nama Seri",
+  "brandName": "Merk Sepeda",
+  "modelName": "Nama Seri Lengkap",
   "year": 2024,
-  "category": "AERO_ROAD",
-  "estimatedFrontalArea": 0.092,
+  "category": "PILIH SALAH SATU DARI 4 DI ATAS",
+  "estimatedFrontalArea": 0.092, 
   "estimatedCrr": 0.0038,
   "estimatedWeightKg": 7.5,
-  "notes": "Deskripsi singkat dalam Bahasa Indonesia..."
+  "notes": "Jelaskan mengapa masuk kategori tersebut (1 kalimat)."
 }
     `.trim();
 
@@ -108,29 +107,21 @@ KEMBALIKAN HANYA JSON MURNI:
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { temperature: 0.1, maxOutputTokens: 350 }
+        generationConfig: { temperature: 0.1, maxOutputTokens: 400 }
       })
     });
-
-    if (!response.ok) return NextResponse.json({ success: true, bike: heuristicBikeLookup(query), isAiGenerated: false });
 
     const data = await response.json();
     const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
 
     if (rawText) {
       const cleanJson = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
-      try {
-        const parsed = JSON.parse(cleanJson);
-        return NextResponse.json({
-          success: true,
-          bike: { ...parsed, source: 'GEMINI_WEB_AI' },
-          isAiGenerated: true
-        });
-      } catch (err) { console.warn(err); }
+      const parsed = JSON.parse(cleanJson);
+      return NextResponse.json({ success: true, bike: { ...parsed, source: 'GEMINI_WEB_AI' }, isAiGenerated: true });
     }
 
     return NextResponse.json({ success: true, bike: heuristicBikeLookup(query), isAiGenerated: false });
   } catch (error) {
-    return NextResponse.json({ error: 'Gagal mencari data' }, { status: 500 });
+    return NextResponse.json({ error: 'Gagal' }, { status: 500 });
   }
 }
