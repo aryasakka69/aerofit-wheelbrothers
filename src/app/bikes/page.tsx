@@ -1,239 +1,135 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import Link from 'next/link';
-import { 
-  Bike, 
-  Trash2, 
-  Check, 
-  ArrowRight, 
-  PlusCircle, 
-  ShieldCheck, 
-  Layers, 
-  Sparkles,
-  ChevronRight
-} from 'lucide-react';
-import BikeSelectorCascading from '@/components/bikes/BikeSelectorCascading';
-import { getUserBikes, saveUserBikes, deleteUserBike } from '@/lib/storage';
-import { UserBikeProfile } from '@/lib/types/bike';
+import { Calendar, ChevronRight, Info, Plus, Tag, Flag, Check } from 'lucide-react';
 
-export default function BikesPage() {
-  const [userBikes, setUserBikes] = useState<UserBikeProfile[]>([]);
-  const [activeBikeId, setActiveBikeId] = useState<string>('');
-  const [showAddForm, setShowAddForm] = useState<boolean>(true);
+// Jalur import sudah disesuaikan dengan folder kamu
+import { INITIAL_BRANDS, INITIAL_BIKE_MODELS } from '@/lib/data/seed-bikes';
+import { BikeCategory } from '@/lib/types/bike';
+import { addUserBike } from '@/lib/storage';
 
-  const loadBikes = () => {
-    const bikes = getUserBikes();
-    setUserBikes(bikes);
-    if (bikes.length > 0 && !activeBikeId) {
-      setActiveBikeId(bikes[0].id);
-    }
-  };
+export default function BikeSelectorPage() {
+  const [selectedYear, setSelectedYear] = useState<number>(2024);
+  const [selectedBrandId, setSelectedBrandId] = useState<string>('');
+  const [selectedModelId, setSelectedModelId] = useState<string>('');
+  const [saveSuccess, setSaveSuccess] = useState<boolean>(false);
 
-  useEffect(() => {
-    loadBikes();
-  }, []);
+  // Daftar tahun 2010 - 2025
+  const years = Array.from({ length: 16 }, (_, i) => 2010 + i);
 
-  const handleSelectActive = (bikeId: string) => {
-    setActiveBikeId(bikeId);
-    // Move selected bike to first position in saved array
-    const selected = userBikes.find(b => b.id === bikeId);
-    if (selected) {
-      const remaining = userBikes.filter(b => b.id !== bikeId);
-      const reordered = [selected, ...remaining];
-      setUserBikes(reordered);
-      saveUserBikes(reordered);
-    }
-  };
+  // LOGIKA FILTER DENGAN PENGAMAN TYPESCRIPT
+  const filteredModels = useMemo(() => {
+    if (!selectedBrandId) return [];
 
-  const handleDelete = (bikeId: string) => {
-    if (confirm('Yakin ingin menghapus sepeda ini dari garasi Anda?')) {
-      deleteUserBike(bikeId);
-      loadBikes();
-    }
+    return INITIAL_BIKE_MODELS.filter((model) => {
+      const isBrandMatch = model.brandId === selectedBrandId;
+
+      // Ambil tahun mulai, jika tidak ada anggap 2010
+      const startYear = model.yearStart ?? 2010;
+
+      // Cek ketersediaan tahun (mengatasi error "possibly undefined")
+      const isAvailable = selectedYear >= startYear && (
+        !model.yearEnd || selectedYear <= model.yearEnd
+      );
+
+      return isBrandMatch && isAvailable;
+    });
+  }, [selectedBrandId, selectedYear]);
+
+  const activeModel = useMemo(() => {
+    return INITIAL_BIKE_MODELS.find(m => m.id === selectedModelId) || null;
+  }, [selectedModelId]);
+
+  const handleSaveToProfile = () => {
+    if (!activeModel) return;
+
+    // Menambahkan default value (?? 0) untuk mengatasi error assignment
+    addUserBike({
+      customName: `${activeModel.brandName} ${activeModel.modelName} (${selectedYear})`,
+      brandId: activeModel.brandId,
+      brandName: activeModel.brandName,
+      modelId: activeModel.id,
+      modelName: activeModel.modelName,
+      year: selectedYear,
+      isCustomOrFallback: false,
+      category: (activeModel.categoryId as BikeCategory) || 'ROAD_ALLROUNDER',
+      estimatedFrontalArea: activeModel.customFrontalArea ?? 0.1, // Beri default jika kosong
+      estimatedCrr: activeModel.customCrr ?? 0.004,             // Beri default jika kosong
+      weightKg: 8.0,
+      notes: activeModel.notes || ""
+    });
+
+    setSaveSuccess(true);
+    setTimeout(() => setSaveSuccess(false), 3000);
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-10">
-      
-      {/* Page Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-white/10">
-        <div>
-          <div className="flex items-center gap-2 mb-2">
-            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-widest bg-cyan-500/10 text-cyan-400 border border-cyan-500/30">
-              Modul 1
-            </span>
-            <span className="text-xs text-slate-400">Database & Garasi Sepeda Rider</span>
+    <div className="max-w-4xl mx-auto px-4 py-12 space-y-10">
+      <h1 className="text-4xl font-black text-white text-center tracking-tight">
+        Pilih <span className="text-cyan-400">Sepeda Anda</span>
+      </h1>
+
+      <div className="bg-slate-900/50 p-8 rounded-3xl border border-white/10 space-y-8 shadow-2xl">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="space-y-2">
+            <label className="text-[10px] font-bold text-cyan-500 uppercase tracking-widest">1. Pilih Tahun</label>
+            <select
+              value={selectedYear}
+              onChange={(e) => { setSelectedYear(Number(e.target.value)); setSelectedModelId(''); }}
+              className="w-full bg-slate-800 border border-white/10 rounded-xl px-4 py-3 text-white outline-none focus:ring-2 focus:ring-cyan-500"
+            >
+              {years.map(y => <option key={y} value={y}>{y}</option>)}
+            </select>
           </div>
-          <h1 className="text-3xl font-extrabold text-white tracking-tight">
-            Pemilihan & Manajemen Sepeda
-          </h1>
-          <p className="text-sm text-slate-400 mt-1 max-w-2xl">
-            Pilih brand, seri, dan tahun sepeda Anda atau gunakan tipe default untuk memperoleh estimasi parameter aerodinamika bawaan (frontal area, Crr, dan geometri CFD).
-          </p>
+
+          <div className="space-y-2">
+            <label className="text-[10px] font-bold text-cyan-500 uppercase tracking-widest">2. Pilih Merk</label>
+            <select
+              value={selectedBrandId}
+              onChange={(e) => { setSelectedBrandId(e.target.value); setSelectedModelId(''); }}
+              className="w-full bg-slate-800 border border-white/10 rounded-xl px-4 py-3 text-white outline-none focus:ring-2 focus:ring-cyan-500"
+            >
+              <option value="">-- Pilih Merk --</option>
+              {INITIAL_BRANDS.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+            </select>
+          </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          <Link
-            href="/calculator"
-            className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-400 hover:to-teal-400 text-slate-950 font-bold text-xs flex items-center gap-2 shadow-lg shadow-cyan-500/20 transition"
+        <div className={`space-y-2 transition-opacity duration-300 ${selectedBrandId ? 'opacity-100' : 'opacity-30'}`}>
+          <label className="text-[10px] font-bold text-cyan-500 uppercase tracking-widest">3. Pilih Model</label>
+          <select
+            value={selectedModelId}
+            onChange={(e) => setSelectedModelId(e.target.value)}
+            className="w-full bg-slate-800 border border-white/10 rounded-xl px-4 py-3 text-white outline-none focus:ring-2 focus:ring-cyan-500"
           >
-            Lanjut ke Kalkulator CdA
-            <ArrowRight className="w-4 h-4" />
-          </Link>
-        </div>
-      </div>
-
-      {/* Section 1: User's Bike Garage */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Bike className="w-5 h-5 text-cyan-400" />
-            <h2 className="text-lg font-bold text-white tracking-tight">Garasi Sepeda Anda ({userBikes.length})</h2>
-          </div>
-          <button
-            onClick={() => setShowAddForm(!showAddForm)}
-            className="text-xs font-semibold text-cyan-400 hover:text-cyan-300 flex items-center gap-1.5 transition"
-          >
-            <PlusCircle className="w-4 h-4" />
-            {showAddForm ? 'Tutup Form Tambah' : 'Tambah Sepeda Baru'}
-          </button>
+            <option value="">-- Pilih Model --</option>
+            {filteredModels.map(m => <option key={m.id} value={m.id}>{m.modelName}</option>)}
+          </select>
         </div>
 
-        {userBikes.length === 0 ? (
-          <div className="glass-panel p-8 rounded-2xl text-center space-y-3">
-            <Bike className="w-10 h-10 text-slate-500 mx-auto" />
-            <h3 className="text-base font-semibold text-white">Belum Ada Sepeda di Garasi</h3>
-            <p className="text-xs text-slate-400 max-w-md mx-auto">
-              Silakan tambahkan sepeda pertama Anda melalui menu di bawah agar kalkulasi CdA dan visualisasi CFD memiliki referensi geometri yang tepat.
-            </p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {userBikes.map((bike) => {
-              const isActive = activeBikeId === bike.id;
-              return (
-                <div
-                  key={bike.id}
-                  className={`p-5 rounded-2xl transition-all relative overflow-hidden flex flex-col justify-between ${
-                    isActive
-                      ? 'glass-panel-glow border-cyan-500/50 bg-slate-900/90'
-                      : 'glass-panel hover:border-white/20'
-                  }`}
-                >
-                  <div>
-                    {/* Top status & badge */}
-                    <div className="flex items-center justify-between gap-2 mb-3">
-                      <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${
-                        bike.isCustomOrFallback 
-                          ? 'bg-amber-500/10 text-amber-400 border-amber-500/30' 
-                          : 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30'
-                      }`}>
-                        {bike.category.replace('_', ' ')}
-                      </span>
-
-                      {isActive && (
-                        <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/30">
-                          <Check className="w-3 h-3" /> Sepeda Aktif
-                        </span>
-                      )}
-                    </div>
-
-                    <h3 className="text-base font-bold text-white mb-1">{bike.customName}</h3>
-                    {bike.brandName && (
-                      <p className="text-xs text-slate-400">
-                        {bike.brandName} • {bike.modelName} {bike.year ? `(${bike.year})` : ''}
-                      </p>
-                    )}
-
-                    {/* Specs Pills */}
-                    <div className="grid grid-cols-3 gap-2 mt-4 pt-3 border-t border-white/5 text-center">
-                      <div className="p-2 rounded-lg bg-slate-950/50">
-                        <span className="text-[9px] text-slate-400 block uppercase">Area</span>
-                        <span className="text-xs font-bold text-cyan-300">{bike.estimatedFrontalArea} m²</span>
-                      </div>
-                      <div className="p-2 rounded-lg bg-slate-950/50">
-                        <span className="text-[9px] text-slate-400 block uppercase">Crr</span>
-                        <span className="text-xs font-bold text-teal-300">{bike.estimatedCrr}</span>
-                      </div>
-                      <div className="p-2 rounded-lg bg-slate-950/50">
-                        <span className="text-[9px] text-slate-400 block uppercase">Berat</span>
-                        <span className="text-xs font-bold text-slate-200">{bike.weightKg} kg</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Actions */}
-                  <div className="flex items-center justify-between gap-2 mt-5 pt-3 border-t border-white/10">
-                    {!isActive ? (
-                      <button
-                        onClick={() => handleSelectActive(bike.id)}
-                        className="text-xs font-semibold text-cyan-400 hover:text-cyan-300 transition py-1 px-2.5 rounded-lg hover:bg-cyan-500/10"
-                      >
-                        Jadikan Aktif
-                      </button>
-                    ) : (
-                      <span className="text-[11px] text-slate-400 font-medium">Siap untuk kalkulasi</span>
-                    )}
-
-                    <button
-                      onClick={() => handleDelete(bike.id)}
-                      className="text-slate-500 hover:text-rose-400 transition p-1.5 rounded-lg hover:bg-rose-500/10"
-                      title="Hapus sepeda"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
+        {activeModel && (
+          <div className="p-6 rounded-2xl bg-white/5 border border-white/10 flex flex-col md:flex-row justify-between items-center gap-6 animate-in fade-in slide-in-from-bottom-4">
+            <div className="space-y-2">
+              <h4 className="text-xl font-bold text-white">{activeModel.modelName}</h4>
+              <p className="text-xs text-slate-400 italic">"{activeModel.notes}"</p>
+            </div>
+            <button
+              onClick={handleSaveToProfile}
+              className={`w-full md:w-auto px-10 py-3.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all active:scale-95 ${saveSuccess ? 'bg-emerald-500 text-slate-950' : 'bg-cyan-500 hover:bg-cyan-400 text-slate-950 shadow-lg shadow-cyan-500/20'}`}
+            >
+              {saveSuccess ? <Check className="w-4 h-4 inline mr-2" /> : <Plus className="w-4 h-4 inline mr-2" />}
+              {saveSuccess ? 'Berhasil Tersimpan' : 'Tambahkan'}
+            </button>
           </div>
         )}
       </div>
 
-      {/* Section 2: Cascading Selector (Add New Bike) */}
-      <div className="space-y-4 pt-6">
-        <div className="flex items-center gap-2">
-          <PlusCircle className="w-5 h-5 text-cyan-400" />
-          <h2 className="text-lg font-bold text-white tracking-tight">
-            {showAddForm || userBikes.length === 0 ? 'Konfigurasi Sepeda Baru' : 'Tambah Sepeda Lain'}
-          </h2>
-        </div>
-
-        {(showAddForm || userBikes.length === 0) && (
-          <BikeSelectorCascading
-            onBikeSelected={(newBike) => {
-              loadBikes();
-              setActiveBikeId(newBike.id);
-              setShowAddForm(false);
-            }}
-          />
-        )}
-      </div>
-
-      {/* Bottom info banner */}
-      <div className="glass-panel p-5 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4 border-cyan-500/20 bg-gradient-to-r from-cyan-950/30 to-slate-900">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-cyan-500/20 flex items-center justify-center flex-shrink-0 text-cyan-400">
-            <Sparkles className="w-5 h-5" />
-          </div>
-          <div>
-            <h4 className="text-sm font-bold text-white">Sepeda Siap Digunakan untuk Analisis</h4>
-            <p className="text-xs text-slate-400">
-              Parameter sepeda aktif akan otomatis mengisi nilai frontal area dan Crr awal pada Kalkulator CdA (Modul 2).
-            </p>
-          </div>
-        </div>
-
-        <Link
-          href="/calculator"
-          className="whitespace-nowrap px-4 py-2.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs flex items-center gap-1.5 transition shadow-md shadow-cyan-500/20"
-        >
-          Mulai Kalkulasi CdA
-          <ChevronRight className="w-4 h-4" />
+      <div className="text-center">
+        <Link href="/bike-fit" className="text-cyan-400 hover:text-cyan-300 text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2">
+          Lanjut ke Bike Fit Scan <ChevronRight className="w-4 h-4" />
         </Link>
       </div>
-
     </div>
   );
 }
