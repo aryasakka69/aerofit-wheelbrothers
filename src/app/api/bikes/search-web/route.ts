@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { BikeCategory, DEFAULT_BIKE_CATEGORIES } from '@/lib/types/bike';
-
+export const runtime = 'edge';
 export interface BikeSearchResult {
   brandName: string;
   modelName: string;
